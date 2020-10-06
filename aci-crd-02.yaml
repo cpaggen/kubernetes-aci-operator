@@ -1,0 +1,18 @@
+apiVersion: "aci.ctrl/v1"
+kind: AciEpg
+metadata:
+  name: epgtest
+spec:
+  tenant: cpaggenk8s
+  ap: annotated
+  epgName: dog
+  bd: aci-containers-cpaggenk8s-pod-bd
+  contracts:
+  - name: default
+    relation: consumed
+  - name: bogus
+    relation: provided
+  - name: cpaggen
+    relation: consumed
+  - name: ddas
+    relation: provided
