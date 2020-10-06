@@ -22,23 +22,30 @@ version = 'v1'
 plurals = 'epgs'
 ns = 'aci-containers-system'
 cfmap = 'aci-containers-config'
+apicInfo = {}
 
 def AciPost(apic, username, privateKey, method, path, payload):
     cert = username + '.crt'
     headers = {}
+    sigContent = method + path + payload
     sigKey = load_privatekey(FILETYPE_PEM, privateKey)
-    sigSignature = base64.b64encode(sign(sigKey, payload, 'sha256')).decode('utf-8')
+    sigSignature = base64.b64encode(sign(sigKey, sigContent, 'sha256')).decode('utf-8')
     sigDn = 'uni/userext/user-%s/usercert-%s' % (username,cert)
     headers['Cookie'] = 'APIC-Certificate-Algorithm=v1.0; ' +\
                         'APIC-Certificate-DN=%s; ' % sigDn +\
                         'APIC-Certificate-Fingerprint=fingerprint; ' +\
                         'APIC-Request-Signature=%s' % (sigSignature)
     url = 'https://' + apic + path
-    print(headers['Cookie'])
-    req = requests.get(url, headers=headers, verify=False)
-    print(req.text)
+    logger.info(headers['Cookie'])
+    if 'GET' in method:
+        req = requests.get(url, headers=headers, verify=False)
+    elif 'POST' in method:
+        logger.info("POSTing to APIC url %s data %s" % (url,payload))
+        req = requests.post(url, data=payload, headers=headers, verify=False)
+    return(req.text)
 
 def getApicInfo():
+    global apicInfo
     ns = 'aci-containers-system'
     v1core = client.CoreV1Api()
     configMap = v1core.read_namespaced_config_map(namespace=ns,name=cfmap)
@@ -74,11 +81,11 @@ def execCommands(ns,pod):
         resp = v1core.read_namespaced_pod(name=pod,namespace=ns)
     except ApiException as e:
         if e.status != 404:
-            print("Unknown kubeapi error: %s" % e)
+            logger.info("Unknown kubeapi error: %s" % e)
             sys.exit(1)
 
     if not resp:
-        print("Pod %s does not exist - this shouldn't happen; was namespace deleted?" % pod)
+        logger.info("Pod %s does not exist - this shouldn't happen; was namespace deleted?" % pod)
         sys.exit(1)
     
     # Calling exec and waiting for response
@@ -101,6 +108,7 @@ def getApicKey():
     configMapJson = json.loads(configMap.data['controller-config'])
 
 async def customEvents():
+    global apicInfo
     w = watch.Watch()
     for event in w.stream(v1.list_cluster_custom_object,group,version,plurals):
         timeStamp = event['object']['metadata']['creationTimestamp']
@@ -114,22 +122,43 @@ async def customEvents():
         contracts = event['object']['spec']['contracts']
         if 'ADDED' in eventType:
             logger.info("\t\tCreating EPG %s in tenant %s in AP %s with BD %s and contracts %r" % (epgName, tenant, ap, bd, contracts))
+            payload = '''
+            <polUni>
+              <fvTenant name="%s">
+                <fvAp name="%s">
+                  <fvAEPg name="%s">
+                    <fvRsBd tnFvBDName="%s" />
+                  </fvAEPg>
+                </fvAp>
+              </fvTenant>
+            </polUni> 
+            ''' % (tenant, ap, epgName, bd)
+            logger.info(payload)
+            
+            newEpg = AciPost(apicInfo['apicHosts'][0], apicInfo['apicUsername'], apicInfo['privKey'], 
+                             'POST', '/api/mo/uni.xml', payload)
+            logger.info(newEpg)
         if 'DELETED' in eventType:
             logger.info("\t\tDeleting EPG %s" % (epgName))
 
         await asyncio.sleep(0)        
 
 def main():
+    global apicInfo
     apicInfo=getApicInfo()
     for key, value in sorted(apicInfo.items()):
-        print("{} : {}".format(key, value))    
-    AciPost(apicInfo['apicHosts'][0], apicInfo['apicUsername'], apicInfo['privKey'], 'get', '/api/class/fvTenant.json', 'GET/api/class/fvTenant.json')
-    sys.exit(666)
-
-
-    #kubectl get configmap/aci-containers-config -n=aci-containers-system -o jsonpath='{.data.controller-config}'
+        logger.info("{} : {}".format(key, value))    
+    tenants = json.loads(AciPost(apicInfo['apicHosts'][0], apicInfo['apicUsername'], apicInfo['privKey'], 'GET', '/api/class/fvTenant.json', ''))
+    logger.info("Testing APIC API access using private key ..")
+    for tenant in tenants['imdata']:
+        logger.info("Found tenant %s on ACI" % (tenant['fvTenant']['attributes']['name']))
+    
+    newTenant = json.loads(AciPost(apicInfo['apicHosts'][0], apicInfo['apicUsername'], 
+                           apicInfo['privKey'], 'POST', 
+                           '/api/mo/uni.json', 
+                           '{"fvTenant": {"attributes": {"status": "created", "name": "crdtest"}}}'))
+    logger.info(newTenant)
     ioloop = asyncio.get_event_loop()
-
     # I am using async tasks in case I have to monitor multiple types later
     ioloop.create_task(customEvents())
     ioloop.run_forever()
