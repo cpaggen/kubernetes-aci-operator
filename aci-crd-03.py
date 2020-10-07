@@ -101,12 +101,6 @@ def execCommands(ns,pod):
                   stdout=True, tty=False)
     return(resp)
 
-def getApicKey():
-    # kubectl exec -t pod/aci-containers-controller-5c67d647c6-tl58z -n=aci-containers-system -- cat /usr/local/etc/aci-cert/user.key
-    v1core = client.CoreV1Api()
-    configMap = v1core.read_namespaced_config_map(namespace=ns,name=cfmap)
-    configMapJson = json.loads(configMap.data['controller-config'])
-
 async def customEvents():
     global apicInfo
     w = watch.Watch()
