@@ -130,6 +130,12 @@ async def customEvents():
             newEpg = AciPost(apicInfo['apicHosts'][0], apicInfo['apicUsername'], apicInfo['privKey'], 
                              'POST', '/api/mo/uni.xml', payload)
             logger.info(newEpg)
+            # add the VMM domain that corresponds to the K8s cluster to the EPG
+            url = '/api/node/mo/uni/tn-%s/ap-%s/epg-%s.json' % (tenant, ap, epgName)
+            payload = '{"fvRsDomAtt":{"attributes":{"tDn":"uni/vmmp-Kubernetes/dom-%s","status":"created"},"children":[{"vmmSecP":{"attributes":{"status":"created"}}}]}}' % (tenant)
+            dom  = AciPost(apicInfo['apicHosts'][0], apicInfo['apicUsername'], apicInfo['privKey'], 
+                             'POST', url, payload)
+            logger.info(dom)
             # now add contracts to the EPG; I'm pushing them one by one else I have to use Jinja2 to build the template
             url = '/api/node/mo/uni/tn-%s/ap-%s/epg-%s.json' % (tenant, ap, epgName)
             for contract in contracts:
