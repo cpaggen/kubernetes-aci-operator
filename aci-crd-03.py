@@ -133,14 +133,18 @@ async def customEvents():
               </fvTenant>
             </polUni> 
             ''' % (tenant, ap, epgName, bd)
-            logger.info(payload)
-            
             newEpg = AciPost(apicInfo['apicHosts'][0], apicInfo['apicUsername'], apicInfo['privKey'], 
                              'POST', '/api/mo/uni.xml', payload)
             logger.info(newEpg)
         if 'DELETED' in eventType:
             logger.info("\t\tDeleting EPG %s" % (epgName))
-
+            url = '/api/node/mo/uni/tn-%s/ap-%s/epg-%s.json' % (tenant, ap, epgName)
+            payload = '''
+            {"fvAEPg":{"attributes":{"dn":"uni/tn-%s/ap-%s/epg-%s","status":"deleted"},"children":[]}}
+            ''' % (tenant, ap, epgName)
+            oldEpg = AciPost(apicInfo['apicHosts'][0], apicInfo['apicUsername'], apicInfo['privKey'], 
+                             'POST', url, payload)
+            logger.info(oldEpg)
         await asyncio.sleep(0)        
 
 def main():
