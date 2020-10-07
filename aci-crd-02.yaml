@@ -5,14 +5,20 @@ metadata:
 spec:
   tenant: cpaggenk8s
   ap: annotated
-  epgName: dog
+  epgName: coolapp
   bd: aci-containers-cpaggenk8s-pod-bd
   contracts:
   - name: default
-    relation: consumed
-  - name: bogus
-    relation: provided
-  - name: cpaggen
-    relation: consumed
-  - name: ddas
-    relation: provided
+    relation: consumer
+  - name: default
+    relation: provider
+  - name: aci-containers-cpaggenk8s-dns
+    relation: consumer
+  - name: aci-containers-cpaggenk8s-istio
+    relation: consumer
+  - name: aci-containers-cpaggenk8s-icmp
+    relation: consumer
+  - name: aci-containers-cpaggenk8s-health-check
+    relation: provider
+  - name: cpaggenk8s-l3out-allow-all
+    relation: consumer
