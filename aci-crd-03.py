@@ -136,6 +136,22 @@ async def customEvents():
             newEpg = AciPost(apicInfo['apicHosts'][0], apicInfo['apicUsername'], apicInfo['privKey'], 
                              'POST', '/api/mo/uni.xml', payload)
             logger.info(newEpg)
+            # now add contracts to the EPG; I'm pushing them one by one else I have to use Jinja2 to build the template
+            url = '/api/node/mo/uni/tn-%s/ap-%s/epg-%s.json' % (tenant, ap, epgName)
+            for contract in contracts:
+                contractName = contract['name']
+                contractRelation = contract['relation']
+                if 'provider' in contractRelation:
+                    payload = '{"fvRsProv":{"attributes":{"tnVzBrCPName":"%s","status":"created,modified"}}}' % (contractName)
+                    rsProv  = AciPost(apicInfo['apicHosts'][0], apicInfo['apicUsername'], apicInfo['privKey'], 
+                                               'POST', url, payload)
+                    logger.info(rsProv)
+                if 'consumer' in contractRelation:
+                    payload = '{"fvRsCons":{"attributes":{"tnVzBrCPName":"%s","status":"created,modified"}}}' % (contractName)
+                    rsCons  = AciPost(apicInfo['apicHosts'][0], apicInfo['apicUsername'], apicInfo['privKey'], 
+                                               'POST', url, payload)
+                    logger.info(rsCons)
+                    
         if 'DELETED' in eventType:
             logger.info("\t\tDeleting EPG %s" % (epgName))
             url = '/api/node/mo/uni/tn-%s/ap-%s/epg-%s.json' % (tenant, ap, epgName)
