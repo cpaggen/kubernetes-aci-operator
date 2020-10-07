@@ -151,7 +151,9 @@ async def customEvents():
                     rsCons  = AciPost(apicInfo['apicHosts'][0], apicInfo['apicUsername'], apicInfo['privKey'], 
                                                'POST', url, payload)
                     logger.info(rsCons)
-                    
+            # annotate K8s namespace for ACI EPG classification
+            patch = annotateNamespace(epgName, tenant, ap, epgName)
+            
         if 'DELETED' in eventType:
             logger.info("\t\tDeleting EPG %s" % (epgName))
             url = '/api/node/mo/uni/tn-%s/ap-%s/epg-%s.json' % (tenant, ap, epgName)
@@ -162,6 +164,15 @@ async def customEvents():
                              'POST', url, payload)
             logger.info(oldEpg)
         await asyncio.sleep(0)        
+
+def annotateNamespace(ns, tenant, ap, epgName):
+    # annotates the K8s ns so pods appear in corresponding EPG on ACI fabric
+    logger.info("Annotating namespace %s" % (ns))
+    v1 = client.CoreV1Api()
+    opflexTag = '{\"tenant\":\"%s\",\"app-profile\":\"%s\",\"name\":\"%s\"}' % (tenant,ap,epgName)
+    p = {"metadata":{"annotations":{"opflex.cisco.com/endpoint-group":"%s" % (opflexTag) }}} 
+    res = v1.patch_namespace(ns, p)
+    logger.info(res)
 
 def main():
     global apicInfo
